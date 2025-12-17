@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: db_user
+          POSTGRES_PASSWORD: "123456"
+          POSTGRES_DB: db_test_simple_project
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U db_user -d db_test_simple_project"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: db_user
+      DB_PASSWORD: "123456"
+      DB_DATABASE: db_test_simple_project
+
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build NestJS
+        run: npm run build
+
+      - name: Run TypeORM migrations
+        run: npm run migration:run
+
+      - name: Run tests
+        run: npm test --if-present
